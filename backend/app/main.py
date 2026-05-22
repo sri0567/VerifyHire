@@ -1,47 +1,52 @@
-from fastapi import FastAPI
-from contextlib import asynccontextmanager
 import asyncio
+import os
+from contextlib import asynccontextmanager
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
 from .database import Base, engine
 from .routes.jobs import router as jobs_router
 
-# Create tables
+# Create tables at startup.
 Base.metadata.create_all(bind=engine)
 
-# Define lifespan
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # This runs when the server STARTS
-    print("🚀 Server starting, beginning initial scrape...")
-    
-    # Start scraper in background (don't wait)
+    print("Server starting, kicking off initial scrape...")
     asyncio.create_task(run_initial_scrape())
-    
-    yield  # Server runs here
-    
-    # This runs when server shuts down
-    print("👋 Server shutting down...")
+    yield
+    print("Server shutting down...")
+
 
 async def run_initial_scrape():
-    """Run scraper once when server starts"""
     try:
         from .routes.jobs import run_scraper_in_background
+
         await run_scraper_in_background()
-    except Exception as e:
-        print(f"Initial scrape failed: {e}")
+    except Exception as exc:
+        print(f"Initial scrape failed: {exc}")
 
 
-app = FastAPI(
-    title="Remote Job Verifier API",
-    lifespan=lifespan  # Attach lifespan here
+app = FastAPI(title="Remote Job Verifier API", lifespan=lifespan)
+
+frontend_origins = os.getenv(
+    "FRONTEND_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000",
 )
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in frontend_origins.split(",") if origin.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 app.include_router(jobs_router, prefix="/jobs", tags=["Jobs"])
 
-print("🔥 MAIN LOADED")
 
 @app.get("/")
 def root():
-    return {
-        "message": "Remote Job Verifier API Running"
-    }
+    return {"message": "Remote Job Verifier API running"}
