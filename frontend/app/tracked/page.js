@@ -74,14 +74,14 @@ export default function TrackedJobsPage() {
       <header className="top-nav">
         <div>
           <p className="eyebrow">Application Tracking</p>
-          <h1 className="brand-title">Tracked Opportunities</h1>
+          <h1 className="brand-title">Saved Opportunities</h1>
         </div>
         <nav className="nav-actions">
           <Link href="/" className="nav-pill">
             Opportunity Feed
           </Link>
           <Link href="/tracked" className="nav-pill nav-pill-active">
-            Tracked Jobs
+            Saved Jobs
             <span className="counter">{trackedCount}</span>
           </Link>
         </nav>
@@ -106,7 +106,7 @@ export default function TrackedJobsPage() {
       <section className="jobs-list">
         {trackedJobs.length === 0 ? (
           <p className="empty-state">
-            You have no tracked jobs yet. Go to Opportunity Feed and click <strong>Track Job</strong>.
+            You have no saved jobs yet. Go to Opportunity Feed and click <strong>Track Job</strong>.
           </p>
         ) : (
           trackedJobs.map((job) => {
@@ -150,7 +150,7 @@ export default function TrackedJobsPage() {
                   </button>
 
                   <button type="button" className="btn btn-outline" onClick={() => removeOne(job.tracked_id)}>
-                    Remove from Tracked
+                    Remove
                   </button>
                 </div>
               </article>

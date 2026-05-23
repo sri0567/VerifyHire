@@ -158,14 +158,14 @@ export default function HomePage() {
       <header className="top-nav">
         <div>
           <p className="eyebrow">Scale Without Borders Hackathon</p>
-          <h1 className="brand-title">LegitRemote Compass</h1>
+          <h1 className="brand-title">VerifyHire</h1>
         </div>
         <nav className="nav-actions">
           <Link href="/" className="nav-pill nav-pill-active">
             Opportunity Feed
           </Link>
           <Link href="/tracked" className="nav-pill">
-            Tracked Jobs
+            Saved Jobs
             <span className="counter">{trackedCount}</span>
           </Link>
         </nav>
@@ -293,7 +293,7 @@ export default function HomePage() {
                 </div>
 
                 <p className="reason">{job.legitimacy_reason}</p>
-                <p className="description">{job.description}</p>
+                
 
                 <div className="tag-row">
                   <span className={`tag ${job.verified_remote ? "tag-green" : "tag-muted"}`}>
@@ -323,7 +323,7 @@ export default function HomePage() {
                     onClick={() => toggleTrack(job)}
                     type="button"
                   >
-                    {tracked ? "Tracked (Saved)" : "Track Job"}
+                    {tracked ? "Saved" : "Save Job"}
                   </button>
                 </div>
 
