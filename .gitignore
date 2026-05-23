@@ -1,11 +1,6 @@
-@"
+.venv/
+node_modules/
 backend/.env
 frontend/.env.local
-backend/jobs.db
-.venv/
-backend/.venv/
-frontend/node_modules/
-frontend/.next/
 __pycache__/
 *.pyc
-"@ | Add-Content .gitignore

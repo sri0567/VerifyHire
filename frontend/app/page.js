@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
+import { getJobTrackingId, loadTrackedJobs, toggleTrackedJob } from "./lib/trackedJobs";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
@@ -25,8 +28,8 @@ function parseAiPayload(raw) {
 
 function scoreBand(score) {
   if (score >= 80) return { label: "High Trust", className: "chip chip-safe" };
-  if (score >= 60) return { label: "Review", className: "chip chip-review" };
-  return { label: "Risky", className: "chip chip-risk" };
+  if (score >= 60) return { label: "Needs Review", className: "chip chip-review" };
+  return { label: "Higher Risk", className: "chip chip-risk" };
 }
 
 export default function HomePage() {
@@ -35,6 +38,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [isScraping, setIsScraping] = useState(false);
+  const [trackedJobsMap, setTrackedJobsMap] = useState({});
 
   const [search, setSearch] = useState("");
   const [minScore, setMinScore] = useState(0);
@@ -70,6 +74,17 @@ export default function HomePage() {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    setTrackedJobsMap(loadTrackedJobs());
+
+    const onStorage = () => {
+      setTrackedJobsMap(loadTrackedJobs());
+    };
+
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
   }, []);
 
   const sourceOptions = useMemo(() => {
@@ -109,6 +124,8 @@ export default function HomePage() {
     return { total, highTrust, verifiedRemote, risky };
   }, [filteredJobs]);
 
+  const trackedCount = useMemo(() => Object.keys(trackedJobsMap).length, [trackedJobsMap]);
+
   const triggerScrape = async () => {
     setIsScraping(true);
     setError("");
@@ -123,14 +140,42 @@ export default function HomePage() {
     }
   };
 
+  const toggleTrack = (job) => {
+    const updatedMap = toggleTrackedJob(job);
+    setTrackedJobsMap(updatedMap);
+  };
+
+  const isTracked = (job) => {
+    const key = getJobTrackingId(job);
+    return Boolean(trackedJobsMap[key]);
+  };
+
   return (
     <main className="page-shell">
-      <section className="hero">
-        <p className="eyebrow">Scale Without Borders Hackathon</p>
-        <h1>Remote Job Guardian</h1>
-        <p className="hero-copy">
-          AI-agent assisted verification for real remote opportunities. Filter high-trust jobs fast, inspect red
-          flags, and review transparent evidence behind every score.
+      <div className="ambient-shape ambient-shape-a" />
+      <div className="ambient-shape ambient-shape-b" />
+
+      <header className="top-nav">
+        <div>
+          <p className="eyebrow">Scale Without Borders Hackathon</p>
+          <h1 className="brand-title">LegitRemote Compass</h1>
+        </div>
+        <nav className="nav-actions">
+          <Link href="/" className="nav-pill nav-pill-active">
+            Opportunity Feed
+          </Link>
+          <Link href="/tracked" className="nav-pill">
+            Tracked Jobs
+            <span className="counter">{trackedCount}</span>
+          </Link>
+        </nav>
+      </header>
+
+      <section className="hero-card">
+        <h2>Find verified remote roles faster with explainable AI trust signals.</h2>
+        <p>
+          Each posting is scored with multi-agent checks for scam phrases, remote consistency, transparency, and
+          compensation plausibility.
         </p>
         <div className="hero-actions">
           <button className="btn btn-primary" onClick={loadData} disabled={loading}>
@@ -144,30 +189,30 @@ export default function HomePage() {
 
       <section className="stats-grid">
         <article className="stat-card">
-          <p className="stat-title">Visible Jobs</p>
+          <p className="stat-label">Visible Jobs</p>
           <p className="stat-value">{derivedStats.total}</p>
         </article>
         <article className="stat-card">
-          <p className="stat-title">High Trust</p>
+          <p className="stat-label">High Trust</p>
           <p className="stat-value">{derivedStats.highTrust}</p>
         </article>
         <article className="stat-card">
-          <p className="stat-title">Verified Remote</p>
+          <p className="stat-label">Verified Remote</p>
           <p className="stat-value">{derivedStats.verifiedRemote}</p>
         </article>
         <article className="stat-card">
-          <p className="stat-title">Potentially Risky</p>
+          <p className="stat-label">Potentially Risky</p>
           <p className="stat-value">{derivedStats.risky}</p>
         </article>
       </section>
 
-      <section className="controls">
+      <section className="filter-panel">
         <label>
           Search
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Title, company, or keywords..."
+            placeholder="Title, company, or keyword"
           />
         </label>
 
@@ -208,15 +253,14 @@ export default function HomePage() {
         </label>
       </section>
 
-      {insights && (
+      {insights ? (
         <section className="insights">
-          <h2>Backend Snapshot</h2>
           <p>
-            Total jobs in database: <strong>{insights.total_jobs}</strong> | Average score:{" "}
+            Total jobs in database: <strong>{insights.total_jobs}</strong> | Average trust score:{" "}
             <strong>{insights.average_score}</strong>
           </p>
         </section>
-      )}
+      ) : null}
 
       {error ? <p className="error-banner">{error}</p> : null}
 
@@ -230,6 +274,7 @@ export default function HomePage() {
             const ai = parseAiPayload(job.ai_analysis_raw);
             const band = scoreBand(job.legitimacy_score);
             const isExpanded = expandedJobId === job.id;
+            const tracked = isTracked(job);
             const report = ai.agent_report;
 
             return (
@@ -264,15 +309,25 @@ export default function HomePage() {
                   ) : null}
                 </div>
 
-                <button
-                  className="btn btn-tertiary"
-                  onClick={() => setExpandedJobId(isExpanded ? null : job.id)}
-                  type="button"
-                >
-                  {isExpanded ? "Hide Agent Details" : "Show Agent Details"}
-                </button>
+                <div className="action-row">
+                  <button
+                    className="btn btn-tertiary"
+                    onClick={() => setExpandedJobId(isExpanded ? null : job.id)}
+                    type="button"
+                  >
+                    {isExpanded ? "Hide Agent Details" : "Show Agent Details"}
+                  </button>
 
-                {isExpanded && (
+                  <button
+                    className={`btn track-btn ${tracked ? "track-btn-active" : ""}`}
+                    onClick={() => toggleTrack(job)}
+                    type="button"
+                  >
+                    {tracked ? "Tracked (Saved)" : "Track Job"}
+                  </button>
+                </div>
+
+                {isExpanded ? (
                   <div className="agent-panel">
                     {report ? (
                       <>
@@ -339,7 +394,7 @@ export default function HomePage() {
                       </div>
                     ) : null}
                   </div>
-                )}
+                ) : null}
               </article>
             );
           })
