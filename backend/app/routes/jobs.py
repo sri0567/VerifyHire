@@ -11,7 +11,7 @@ from ..crud import create_job
 from ..database import get_db
 from ..models import Job
 from ..schemas import JobCreate, JobResponse
-from ..scrapers import fetch_all_greenhouse_jobs
+from ..scrapers import fetch_remoteok_jobs,fetch_all_remoteok_jobs
 from ..verifier import (
     calculate_score,
     check_remote_validity,
@@ -142,20 +142,20 @@ async def run_scraper_in_background():
     try:
         print("Background scraper started...")
 
-        jobs = await fetch_all_greenhouse_jobs(limit_per_company=1)
+        jobs = await fetch_all_remoteok_jobs(db,batch_size=10,max_batches=5)
         saved_count = 0
         error_count = 0
         duplicate_count = 0
 
         for api_job in jobs:
             try:
-                greenhouse_job_id = str(api_job.get("id"))
+                remote_ok_id = str(api_job.get("id"))
                 title = api_job.get("title", "") or "Untitled Position"
                 company = api_job.get("company_board", "Unknown Company")
 
                 raw_description = api_job.get("content") or api_job.get("description") or ""
                 description = clean_description(raw_description, max_length=1500)
-                short_summary = extract_summary(raw_description, max_length=300)
+                
 
                 if not description or len(description) < 50:
                     print(f"No valid description for {title}, skipping...")
@@ -171,11 +171,11 @@ async def run_scraper_in_background():
                 if not apply_url:
                     job_id = api_job.get("id")
                     if job_id and company:
-                        apply_url = f"https://boards.greenhouse.io/{company}/jobs/{job_id}"
+                        apply_url = f"https://remoteok.com/jobs/{job_id}"
                     else:
                         apply_url = "#"
 
-                existing = db.query(Job).filter(Job.source_job_id == greenhouse_job_id).first()
+                existing = db.query(Job).filter(Job.source_job_id == remote_ok_id).first()
                 if existing:
                     duplicate_count += 1
                     continue
@@ -198,15 +198,15 @@ async def run_scraper_in_background():
                     "company": company[:255],
                     "location": (location or "Remote")[:255],
                     "salary": "Not specified",
-                    "source": "Greenhouse",
-                    "description": short_summary,
+                    "source": "RemoteOk",
+                    "description": description,
                     "legitimacy_score": consensus_score,
                     "legitimacy_reason": agent_report["summary"],
                     "verified_remote": verified_remote,
                     "ai_analysis_raw": _serialize_ai_payload(agent_report, llm_summary),
                     "scam_flag": len(phrase_flags) > 0 or agent_report["risk_level"] == "high",
                     "apply_url": apply_url,
-                    "source_job_id": greenhouse_job_id,
+                    "source_job_id": remote_ok_id,
                 }
 
                 create_job(db, job_data)

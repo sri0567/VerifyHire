@@ -1,6 +1,7 @@
 import re
 from html import unescape
 
+
 def clean_description(description: str, max_length: int = 1500):
     """
     Aggressively clean and shorten job description
@@ -57,7 +58,7 @@ def clean_description(description: str, max_length: int = 1500):
     
     return description
 
-def extract_summary(description: str, max_length: int = 500):
+def extract_summary(description: str, max_length: int = 1000):
     """
     Extract a very short summary from the description
     - Takes first few sentences
@@ -105,57 +106,129 @@ def detect_scam_phrases(description: str):
     return found_flags
 
 
-def check_remote_validity(description: str):
-   
+def check_remote_validity(description: str) -> bool:
+    """
+    Improved remote job detection with scoring system and better pattern matching
+    
+    Returns:
+        bool: True if likely remote, False if likely office-based
+    """
     if not description:
         return False
     
     text = description.lower()
     
-    # Strong remote indicators
-    remote_indicators = [
+    # Strong remote indicators (high weight)
+    strong_remote_indicators = [
+        ("100% remote", 3),
+        ("fully remote", 3),
+        ("work from anywhere", 3),
+        ("remote-first", 3),
+        ("remote first", 3),
+        ("distributed team", 2),
+        ("anywhere in the world", 3),
+        ("global remote", 2),
+        ("work from home permanently", 3),
+    ]
+    
+    # Moderate remote indicators
+    moderate_remote_indicators = [
         "remote",
         "work from home",
         "wfh",
         "work remotely",
-        "anywhere in the world",
-        "100% remote",
-        "fully remote",
-        "distributed team",
-        "work wherever you want",
         "home-based",
-        "virtual position"
+        "virtual position",
+        "telecommute",
+        "remote work",
+        "location independent",
+        "work wherever you want",
+        "no office",
+        "fully distributed",
     ]
     
-   
+    # Office-based indicators (negative weight)
     office_indicators = [
-        "must relocate",
-        "onsite required",
-        "in-office",
-        "hybird",
-        "in office",
-        "must be located in",
-        "must live in",
-        "hybrid schedule",
-        "in-person",
-        "office-based",
-        "not remote",
-        "this is not a remote position"
+        ("must relocate", 3),
+        ("onsite required", 3),
+        ("in-office", 2),
+        ("in office", 2),
+        ("driving",2),
+        ("must be located in", 2),
+        ("must live in", 2),
+        ("hybrid schedule", 2),
+        ("in-person", 2),
+        ("office-based", 2),
+        ("not remote", 3),
+        ("this is not a remote position", 3),
+        ("relocation required", 2),
+        ("on-site", 2),
+        ("onsite", 2),
+        ("work from office", 2),
+        ("attendance required", 1),
     ]
     
-   
-    for indicator in office_indicators:
+    # Location-specific indicators (context matters)
+    location_indicators = [
+        "must be based in",
+        "must reside in",
+        "local candidates only",
+        "within commuting distance",
+        "relocate to",
+        "location"
+    ]
+    
+    # Calculate score
+    remote_score = 0
+    office_score = 0
+    
+    # Check strong remote indicators
+    for indicator, weight in strong_remote_indicators:
         if indicator in text:
-            return False
+            remote_score += weight
     
-    
-    for indicator in remote_indicators:
+    # Check moderate remote indicators
+    for indicator in moderate_remote_indicators:
         if indicator in text:
-            return True
+            # Check for negations
+            if f"not {indicator}" in text or f"no {indicator}" in text:
+                office_score += 2
+            else:
+                remote_score += 1
     
-   
+    # Check office indicators
+    for indicator, weight in office_indicators:
+        if indicator in text:
+            office_score += weight
+    
+    # Check location requirements (indicates office-based)
+    for indicator in location_indicators:
+        if indicator in text:
+            office_score += 2
+    
+    # Special case: If job mentions specific city/office location but also remote
+    location_words = ['new york', 'san francisco', 'london', 'berlin', 'singapore', 'tokyo']
+    city_mentioned = any(city in text for city in location_words)
+    
+    # If city mentioned but no strong remote indicators, likely office-based
+    if city_mentioned and remote_score < 2:
+        office_score += 1
+    
+    # Decision logic
+    # Strong remote signals override everything
+    if "100% remote" in text or "fully remote" in text:
+        return True
+    
+    # If strong office signals, return False
+    if office_score >= 3:
+        return False
+    
+    # If remote score is high enough, return True
+    if remote_score >= 2:
+        return True
+    
+    # Default to False if uncertain
     return False
-
 
 def calculate_score(flags, verified_remote):
     score = 100

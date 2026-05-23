@@ -4,5 +4,6 @@ sqlalchemy
 psycopg2-binary
 python-dotenv
 openai
+langdetect
 httpx
 pydantic
